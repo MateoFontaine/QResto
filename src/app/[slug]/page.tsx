@@ -3,6 +3,48 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Store, Wifi, Copy, CheckCircle2, X, Utensils } from "lucide-react";
+import { Metadata } from 'next';
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const slug = params.slug;
+
+  // Buscamos el restaurante en la base de datos de forma directa para el SEO
+  const { data: restaurant } = await supabase
+    .from('restaurants')
+    .select('name, logo_url')
+    .eq('slug', slug)
+    .single();
+
+  const title = restaurant ? `Menú Digital - ${restaurant.name}` : 'Menú Digital';
+  const description = `Explorá nuestra carta online, conocé nuestros platos y disfrutá de la mejor experiencia en ${restaurant?.name || 'nuestro local'}.`;
+  const image = restaurant?.logo_url || '/default-menu-share.jpg'; // Una imagen por defecto si no hay logo
+
+  return {
+    title: title,
+    description: description,
+    openGraph: {
+      title: title,
+      description: description,
+      url: `https://q-resto.vercel.app/${slug}`,
+      siteName: 'Q-Resto',
+      images: [
+        {
+          url: image,
+          width: 800,
+          height: 600,
+          alt: `Logo de ${restaurant?.name}`,
+        },
+      ],
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: title,
+      description: description,
+      images: [image],
+    },
+  };
+}
 
 export default function PublicMenuPage() {
   const params = useParams();
