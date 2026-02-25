@@ -1,10 +1,46 @@
 "use client";
-import { UtensilsCrossed, ListTree, QrCode, ExternalLink } from "lucide-react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { UtensilsCrossed, ListTree, QrCode, ExternalLink, X, Download, Copy, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { QRCodeCanvas } from "qrcode.react";
 
 export default function DashboardHomePage() {
+  const [restaurant, setRestaurant] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const fetchRestaurant = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data: shop } = await supabase
+        .from('restaurants')
+        .select('*')
+        .eq('owner_id', session.user.id)
+        .single();
+
+      if (shop) setRestaurant(shop);
+    };
+    fetchRestaurant();
+  }, []);
+
+  const menuUrl = restaurant ? `https://q-resto.vercel.app/${restaurant.slug}` : "";
+
+  const downloadQR = () => {
+    const canvas = document.querySelector("canvas");
+    if (!canvas) return;
+    const pngUrl = canvas.toDataURL("image/png").replace("image/png", "image/octet-stream");
+    let downloadLink = document.createElement("a");
+    downloadLink.href = pngUrl;
+    downloadLink.download = `QR-${restaurant?.slug || "menu"}.png`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+  };
+
   return (
-    // Cambiamos max-w-5xl por w-full
     <div className="space-y-10 animate-in fade-in duration-700 w-full">
       
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 w-full">
@@ -16,18 +52,15 @@ export default function DashboardHomePage() {
             Bienvenido a tu panel de autogestión.
           </p>
         </div>
-        <button className="flex items-center justify-center gap-2 px-6 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black hover:scale-[1.02] transition-all shadow-xl active:scale-95 uppercase tracking-widest text-sm shrink-0">
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center justify-center gap-2 px-6 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black hover:scale-[1.02] transition-all shadow-xl active:scale-95 uppercase tracking-widest text-sm shrink-0"
+        >
           <QrCode className="w-5 h-5" />
           <span>Ver mi QR</span>
         </button>
       </div>
 
-      {/* Acá está la magia Responsive:
-        - grid-cols-1: en celulares (1 columna)
-        - md:grid-cols-2: en tablets/notebooks (2 columnas)
-        - xl:grid-cols-3: en monitores grandes (3 columnas)
-        - 2xl:grid-cols-4: en monitores gigantes (4 columnas)
-      */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 w-full">
         
         {/* Tarjeta para ir a Categorías */}
@@ -65,8 +98,58 @@ export default function DashboardHomePage() {
             Gestionar <ExternalLink className="w-4 h-4 ml-2" />
           </div>
         </Link>
-
       </div>
+
+      {/* MODAL DEL QR */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#161B26] w-full max-w-sm rounded-[40px] p-8 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="text-center">
+              <h3 className="text-2xl font-black uppercase tracking-tighter mb-2 dark:text-white">Tu Menú QR</h3>
+              <p className="text-slate-500 text-sm font-medium mb-8">Descargá el código para tus mesas.</p>
+              
+              <div className="bg-white p-6 rounded-[32px] inline-block shadow-inner border border-slate-100 mb-8">
+                <QRCodeCanvas
+                  value={menuUrl}
+                  size={200}
+                  level={"H"}
+                  includeMargin={false}
+                  imageSettings={restaurant?.logo_url ? {
+                    src: restaurant.logo_url,
+                    x: undefined, y: undefined, height: 40, width: 40, excavate: true,
+                  } : undefined}
+                />
+              </div>
+
+              <button 
+                onClick={downloadQR}
+                className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 uppercase tracking-widest text-sm mb-4 flex items-center justify-center gap-2"
+              >
+                <Download className="w-5 h-5" /> Descargar PNG
+              </button>
+
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(menuUrl);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="w-full py-3 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:opacity-70 transition-opacity"
+              >
+                {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                {copied ? "¡Copiado!" : "Copiar URL del menú"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
